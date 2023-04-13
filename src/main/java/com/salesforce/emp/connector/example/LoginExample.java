@@ -18,8 +18,12 @@ import org.eclipse.jetty.util.ajax.JSON;
 
 import com.salesforce.emp.connector.BayeuxParameters;
 import com.salesforce.emp.connector.EmpConnector;
-import com.salesforce.emp.connector.LoginHelper;
+
 import com.salesforce.emp.connector.TopicSubscription;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 
 /**
  * An example of using the EMP connector using login credentials
@@ -33,7 +37,7 @@ public class LoginExample {
     // The main purpose of asynchronous event processing is to make sure that client is able to perform /meta/connect requests which keeps the session alive on the server side
     private static final ExecutorService workerThreadPool = Executors.newFixedThreadPool(1);
 
-    public static void main(String[] argv) throws Exception {
+    public static void main(String[] argv) throws Exception, IOException {
         if (argv.length < 3 || argv.length > 4) {
             System.err.println("Usage: LoginExample username password topic [replayFrom]");
             System.exit(1);
@@ -54,8 +58,16 @@ public class LoginExample {
         });
 
         BayeuxParameters params = tokenProvider.login();
+        
+        Consumer<Map<String, Object>> consumer = event -> workerThreadPool.submit(() -> {
 
-        Consumer<Map<String, Object>> consumer = event -> workerThreadPool.submit(() -> System.out.println(String.format("Received:\n%s", JSON.toString(event))));
+            try{
+                postRequest(JSON.toString(event));
+            }
+            catch(Exception e){
+                
+            }
+        });
 
         EmpConnector connector = new EmpConnector(params);
 
@@ -66,5 +78,25 @@ public class LoginExample {
         TopicSubscription subscription = connector.subscribe(argv[2], replayFrom, consumer).get(5, TimeUnit.SECONDS);
 
         System.out.println(String.format("Subscribed: %s", subscription));
+        
+    }
+
+    public static void postRequest(String event) throws Exception {
+
+        final String POST_PARAMS = event;
+
+        URL obj = new URL("https://webhook.site/a3943e2a-5b1f-43cb-a7ad-d1c15243d8d8");
+        HttpURLConnection postConnection = (HttpURLConnection) obj.openConnection();
+        postConnection.setRequestMethod("POST");
+        //postConnection.setRequestProperty("userId", "a1bcdefgh");
+        //postConnection.setRequestProperty("Content-Type", "application/json");
+    
+        postConnection.setDoOutput(true);
+        OutputStream os = postConnection.getOutputStream();
+        os.write(POST_PARAMS.getBytes());
+        os.flush();
+        os.close();
+        
+        postConnection.getResponseCode();
     }
 }
